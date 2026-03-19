@@ -12,8 +12,6 @@ void liberarTablero(unsigned char** ptr, unsigned int filas);
 bool hayColision(unsigned char** tablero, unsigned char* piezaBits, int px, int py, int anchoTab, int altoTab);
 void fijarFicha(unsigned char** tablero, unsigned char* piezaBits, int px, int py, int anchoTab, bool colocar);
 void rotar90(unsigned char* piezaBits);
-
-// NUEVA FUNCIÓN: Detecta y borra líneas completas
 void verificarLineas(unsigned char** tablero, int filas, int columnas_bits);
 
 int main() {
@@ -22,28 +20,24 @@ int main() {
     unsigned char** ptr = nullptr;
     int opcion;
 
+    // Representación binaria de las piezas (4x4 bits)
     unsigned char piezas[5][4] = {
-        {0b11110000, 0, 0, 0},           // I
+        {0b11110000, 0, 0, 0},           // Línea (I)
         {0b11100000, 0b01000000, 0, 0},  // T
         {0b11000000, 0b01100000, 0, 0},  // Z
         {0b11100000, 0b10000000, 0, 0},  // L
-        {0b11000000, 0b11000000, 0, 0}   // O
+        {0b11000000, 0b11000000, 0, 0}   // Cuadrado (O)
     };
 
     cout << "Ingrese FILAS: "; cin >> filas;
-    cout << "Ingrese COLUMNAS (8, 16...): "; cin >> columnas;
+    cout << "Ingrese COLUMNAS (8, 16, 24...): "; cin >> columnas;
+
+    // Cada 'unsigned char' es un contenedor de 8 celdas (bits)
     columnas_bits = columnas / 8;
 
     crearMatriz(ptr, filas, columnas_bits);
     inicializarTablero(ptr, filas, columnas_bits);
 
-    cout << "\n=======================================================\n";
-    cout << "  _____     _       _      __  __           _   _ \n";
-    cout << " |_   _|___| |_ _ __(_)___|  \\/  | __ _ ___| |_ ___ _ __ \n";
-    cout << "   | |/ _ \\ __| '__| / __| |\\/| |/ _` / __| __/ _ \\ '__|\n";
-    cout << "   | |  __/ |_| |  | \\__ \\ |  | | (_| \\__ \\ ||  __/ |   \n";
-    cout << "   |_|\\___|\\__|_|  |_|___/_|  |_|\\__,_|___/\\__\\___|_|   \n";
-    cout << "=======================================================\n";
     cout << "\n1. JUGAR\n2. SALIR\nSeleccione: "; cin >> opcion;
 
     if (opcion == 1) {
@@ -51,49 +45,84 @@ int main() {
         int idPieza = rand() % 5;
         unsigned char piezaActual[4];
         for(int i=0; i<4; i++) piezaActual[i] = piezas[idPieza][i];
+
         int px = (columnas - 4) / 2;
         int py = 0;
 
         while (juegoActivo) {
             fijarFicha(ptr, piezaActual, px, py, columnas, true);
             imprimirTablero(ptr, filas, columnas_bits);
-            cout << "\nAccion [A,D,S,W,Q]: ";
 
+            cout << "\nControles: A(Izq), D(Der), S(Bajar), W(Rotar), Q(Salir)\nAccion: ";
+
+            // Borramos la pieza antes de moverla para que la función de colisión
+            // no detecte la propia pieza como un obstáculo.
             fijarFicha(ptr, piezaActual, px, py, columnas, false);
 
             char tecla; cin >> tecla;
             if (tecla == 'q' || tecla == 'Q') break;
+
+            // --- MOVIMIENTO A LA IZQUIERDA ---
             else if (tecla == 'a' || tecla == 'A') {
-                if (!hayColision(ptr, piezaActual, px - 1, py, columnas, filas)) px--;
+                // Simulamos el movimiento: ¿Qué pasaría si restamos 1 a la posición X?
+                bool hayObstaculo = hayColision(ptr, piezaActual, px - 1, py, columnas, filas);
+
+                // Si NO hay obstáculo, actualizamos la posición real
+                if (!hayObstaculo) {
+                    px--;
+                }
             }
+
+            // --- MOVIMIENTO A LA DERECHA ---
             else if (tecla == 'd' || tecla == 'D') {
-                if (!hayColision(ptr, piezaActual, px + 1, py, columnas, filas)) px++;
+                // Simulamos: ¿Qué pasaría si sumamos 1 a la posición X?
+                if (!hayColision(ptr, piezaActual, px + 1, py, columnas, filas)) {
+                    px++; // Si el camino está libre, nos movemos
+                }
             }
+
+            // --- ROTACIÓN DE LA PIEZA ---
             else if (tecla == 'w' || tecla == 'W') {
+                // 1. Creamos una copia de la pieza actual
                 unsigned char copia[4];
-                for(int i=0; i<4; i++) copia[i] = piezaActual[i];
+                for(int i = 0; i < 4; i++) {
+                    copia[i] = piezaActual[i];
+                }
+
+                // 2. Rotamos esa copia fuera del tablero
                 rotar90(copia);
-                if (!hayColision(ptr, copia, px, py, columnas, filas))
-                    for(int i=0; i<4; i++) piezaActual[i] = copia[i];
+
+                // 3. Verificamos si esa nueva forma rotada cabe en el espacio actual
+                // (Esto evita que la pieza se rote si está pegada a una pared o a otra pieza)
+                if (!hayColision(ptr, copia, px, py, columnas, filas)) {
+                    // Si cabe, transferimos la forma rotada a la pieza real
+                    for(int i = 0; i < 4; i++) {
+                        piezaActual[i] = copia[i];
+                    }
+                }
             }
             else if (tecla == 's' || tecla == 'S') {
-                if (hayColision(ptr, piezaActual, px, py + 1, columnas, filas)) {
-                    fijarFicha(ptr, piezaActual, px, py, columnas, true);
+                // Intentamos ver si un paso más abajo hay choque
+                bool choqueAbajo = hayColision(ptr, piezaActual, px, py + 1, columnas, filas);
 
-                    // --- AQUÍ REVISAMOS LAS LÍNEAS ---
+                if (choqueAbajo) {
+                    // Si choca, la fijamos permanentemente
+                    fijarFicha(ptr, piezaActual, px, py, columnas, true);
                     verificarLineas(ptr, filas, columnas_bits);
 
+                    // Nueva pieza al inicio
                     idPieza = rand() % 5;
                     for(int i=0; i<4; i++) piezaActual[i] = piezas[idPieza][i];
                     px = (columnas - 4) / 2;
                     py = 0;
 
+                    // Si al aparecer ya choca, es fin del juego
                     if (hayColision(ptr, piezaActual, px, py, columnas, filas)) {
                         juegoActivo = false;
                         cout << "\n¡GAME OVER!" << endl;
                     }
                 } else {
-                    py++;
+                    py++; // No hay choque, puede bajar
                 }
             }
         }
@@ -102,48 +131,32 @@ int main() {
     return 0;
 }
 
-// --- LÓGICA DE LIMPIEZA ---
-void verificarLineas(unsigned char** tablero, int filas, int columnas_bits) {
-    // Escaneamos de abajo hacia arriba
-    for (int i = filas - 1; i >= 0; i--) {
-        bool filaLlena = true;
-        for (int j = 0; j < columnas_bits; j++) {
-            // Un byte lleno es 11111111 en binario (255 en decimal)
-            if (tablero[i][j] != 0xFF) {
-                filaLlena = false;
-                break;
-            }
-        }
+// --- EXPLICACIÓN DE OPERACIONES DE BITS ---
 
-        if (filaLlena) {
-            // Desplazar todo lo de arriba hacia abajo
-            for (int k = i; k > 0; k--) {
-                for (int j = 0; j < columnas_bits; j++) {
-                    tablero[k][j] = tablero[k - 1][j];
-                }
-            }
-            // Limpiar la fila superior (ahora vacía)
-            for (int j = 0; j < columnas_bits; j++) {
-                tablero[0][j] = 0;
-            }
-            // Volvemos a revisar la misma fila 'i' porque la de arriba bajó
-            i++;
-        }
-    }
-}
-
-// --- RESTO DE FUNCIONES (IGUALES A LAS ANTERIORES) ---
 void fijarFicha(unsigned char** tablero, unsigned char* piezaBits, int px, int py, int anchoTab, bool colocar) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            if (piezaBits[i] & (0x80 >> j)) {
+
+            // ¿Hay un bloque en esta posición de la pieza?
+            // Desplazamos 10000000 (0x80) a la derecha 'j' veces para comparar
+            unsigned char mascaraPieza = (0x80 >> j);
+            bool existeBloque = piezaBits[i] & mascaraPieza;
+
+            if (existeBloque) {
                 int f_real = py + i;
                 int c_real = px + j;
+
                 if (f_real >= 0 && f_real < 1000 && c_real >= 0 && c_real < anchoTab) {
+                    // Calculamos en qué "caja" de 8 bits cae la columna
                     int byteIdx = c_real / 8;
+                    // Calculamos la posición dentro de esa caja (de izquierda a derecha)
                     int bitPos = 7 - (c_real % 8);
-                    if (colocar) tablero[f_real][byteIdx] |= (1 << bitPos);
-                    else tablero[f_real][byteIdx] &= ~(1 << bitPos);
+                    unsigned char mascaraTablero = (1 << bitPos);
+
+                    if (colocar)
+                        tablero[f_real][byteIdx] |= mascaraTablero; // Encendemos con OR
+                    else
+                        tablero[f_real][byteIdx] &= ~mascaraTablero; // Apagamos con AND NOT
                 }
             }
         }
@@ -153,14 +166,25 @@ void fijarFicha(unsigned char** tablero, unsigned char* piezaBits, int px, int p
 bool hayColision(unsigned char** tablero, unsigned char* piezaBits, int px, int py, int anchoTab, int altoTab) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            if (piezaBits[i] & (0x80 >> j)) {
+
+            bool pixelPiezaActivo = piezaBits[i] & (0x80 >> j);
+
+            if (pixelPiezaActivo) {
                 int f_real = py + i;
                 int c_real = px + j;
-                if (f_real >= altoTab || c_real < 0 || c_real >= (int)anchoTab) return true;
+
+                // 1. Verificar límites físicos del tablero
+                if (f_real >= altoTab || c_real < 0 || c_real >= anchoTab) return true;
+
+                // 2. Verificar si el bit en el tablero ya está encendido (valor 1)
                 if (f_real >= 0) {
                     int byteIdx = c_real / 8;
                     int bitPos = 7 - (c_real % 8);
-                    if ((tablero[f_real][byteIdx] >> bitPos) & 1) return true;
+
+                    // Extraemos el valor del bit: desplazamos a la derecha y aislamos el último bit
+                    bool celdaOcupada = (tablero[f_real][byteIdx] >> bitPos) & 1;
+
+                    if (celdaOcupada) return true;
                 }
             }
         }
@@ -168,18 +192,54 @@ bool hayColision(unsigned char** tablero, unsigned char* piezaBits, int px, int 
     return false;
 }
 
-void rotar90(unsigned char* piezaBits) {
-    bool temporal[4][4] = {false};
-    for(int i=0; i<4; i++)
-        for(int j=0; j<4; j++)
-            if(piezaBits[i] & (0x80 >> j)) temporal[i][j] = true;
-    unsigned char nueva[4] = {0,0,0,0};
-    for(int i=0; i<4; i++) {
-        for(int j=0; j<4; j++) {
-            if(temporal[i][j]) nueva[j] |= (0x80 >> (3 - i));
+void verificarLineas(unsigned char** tablero, int filas, int columnas_bits) {
+    for (int i = filas - 1; i >= 0; i--) {
+        bool filaCompleta = true;
+
+        for (int j = 0; j < columnas_bits; j++) {
+            // Si el byte es 11111111 (0xFF), significa que 8 bloques están llenos
+            if (tablero[i][j] != 0xFF) {
+                filaCompleta = false;
+                break;
+            }
+        }
+
+        if (filaCompleta) {
+            // Movemos todo el contenido de las filas superiores hacia abajo
+            for (int k = i; k > 0; k--) {
+                for (int j = 0; j < columnas_bits; j++) {
+                    tablero[k][j] = tablero[k - 1][j];
+                }
+            }
+            // La fila superior queda vacía
+            for (int j = 0; j < columnas_bits; j++) tablero[0][j] = 0;
+
+            i++; // Volvemos a revisar la misma posición i porque ahora tiene nuevos datos
         }
     }
-    for(int i=0; i<4; i++) piezaBits[i] = nueva[i];
+}
+
+// --- SOPORTE TÉCNICO ---
+
+void rotar90(unsigned char* piezaBits) {
+    bool matriz[4][4] = {false};
+
+    // Paso 1: Convertir bits a matriz booleana (fácil de leer)
+    for(int i=0; i<4; i++)
+        for(int j=0; j<4; j++)
+            if(piezaBits[i] & (0x80 >> j)) matriz[i][j] = true;
+
+    // Paso 2: Rotar 90 grados y re-empaquetar en bits
+    for(int i=0; i<4; i++) piezaBits[i] = 0; // Limpiar pieza
+
+    for(int i=0; i<4; i++) {
+        for(int j=0; j<4; j++) {
+            if(matriz[i][j]) {
+                // El punto (i, j) rotado es (j, 3-i)
+                piezaBits[j] |= (0x80 >> (3 - i));
+            }
+        }
+    }
 }
 
 void crearMatriz(unsigned char**& ptr, unsigned int filas, unsigned int columnas_bits) {
@@ -198,8 +258,8 @@ void imprimirTablero(unsigned char** ptr, unsigned int filas, unsigned int colum
         cout << "|";
         for (unsigned int j = 0; j < columnas_bits; j++) {
             for (int bit = 7; bit >= 0; bit--) {
-                if ((ptr[i][j] >> bit) & 1) cout << "[]";
-                else cout << " .";
+                bool activo = (ptr[i][j] >> bit) & 1;
+                cout << (activo ? "[]" : " .");
             }
         }
         cout << "|" << endl;
