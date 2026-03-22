@@ -7,16 +7,20 @@ using namespace std;
 void imprimirTablero(unsigned char** ptr, unsigned int filas, unsigned int columnas, unsigned char** tablerofijo);
 void inicializarTablero(unsigned char** ptr, unsigned int filas, unsigned int columnas);
 void crearMatriz(unsigned char** ptr, unsigned int filas, unsigned int columnas);
-void ingresarFicha(unsigned char** ptr, unsigned char piezas[5][4],unsigned int columnas, unsigned int columnas_bits,unsigned int &filaficha,unsigned int &dimensiony,unsigned char** tablerofijo,bool &juegoActivo);
-void bajar(unsigned char** ptr,unsigned char** tablerofijo,unsigned int &filaFicha,unsigned int columnas_bits,unsigned int filas, unsigned char piezas[5][4],unsigned int columnas,unsigned int &dimensiony,bool &juegoActivo);
-void MoverDerecha(unsigned char** ptr,unsigned int filaFicha,unsigned int columnas_bits,unsigned int filas,unsigned int dimensiony);
-void MoverIzquierda(unsigned char** ptr,unsigned int filaFicha,unsigned int columnas_bits,unsigned int dimensiony);
+void ingresarFicha(unsigned char** ptr, unsigned char piezas[5][4],unsigned int columnas, unsigned int columnas_bits,unsigned int &filaficha,unsigned int &dimensiony,unsigned char** tablerofijo,bool &juegoActivo,int &posicionx,unsigned int &dimensionx,unsigned char piezaActiva[4]);
+void bajar(unsigned char** ptr,unsigned char** tablerofijo,unsigned int &filaFicha,unsigned int columnas_bits,unsigned int filas, unsigned char piezas[5][4],unsigned int columnas,unsigned int &dimensiony,bool &juegoActivo,int &posicionx,unsigned int &dimensionx,unsigned char piezaActiva[4]);
+void MoverDerecha(unsigned char** ptr,unsigned int filaFicha,unsigned int columnas_bits,unsigned int filas,unsigned int dimensiony,int &posicionx,unsigned int dimensionx);
+void MoverIzquierda(unsigned char** ptr,unsigned int filaFicha,unsigned int columnas_bits,unsigned int dimensiony,int &posicionx);
 bool hayColisionAbajo(unsigned char** ptr,unsigned char** tablerofijo,unsigned int filaFicha,unsigned int columnas_bits,unsigned int filas, unsigned int dimensiony);
 void borrarFilas(unsigned char** tablerofijo, unsigned int filas, unsigned int columnas_bits);
+void rotarDerecha(unsigned char piezaActual[4], unsigned int &dimensionx, unsigned int &dimensiony);
+bool esPosibleRotar(unsigned char piezaRotada[4], unsigned int dimX, unsigned int dimY, unsigned int filaFicha, int posicionx, unsigned char** tablerofijo, unsigned int filas, unsigned int columnas_bits);
+
 
 int main()
 {
-    unsigned int filas,columnas,columnas_bits,dimensiony = 0,filaFicha = 0,posicionx = 0;// filas
+    unsigned int filas,columnas,columnas_bits,dimensiony = 0,dimensionx=0,filaFicha = 0;// filas
+    int posicionx= 0;
     unsigned char** ptr;
     unsigned char** tablerofijo;
     bool juegoActivo = true;
@@ -32,10 +36,12 @@ int main()
         {
             {0b10000000,0b10000000,0b10000000,0b10000000},      // I
             {0b11100000,0b01000000,0,0}, // T
-            {0b11000000,0b00110000,0,0}, // Z
+            {0b11000000,0b01100000,0,0}, // Z
             {0b10000000,0b10000000,0b11000000,0}, // L
             {0b11000000,0b11000000,0,0}  // O
         };
+
+    unsigned char piezaActiva[4];
 
     //inicializo la aleatoridad
     srand(time(0));
@@ -47,7 +53,7 @@ int main()
     crearMatriz(tablerofijo,filas,columnas_bits);
     inicializarTablero(tablerofijo,filas,columnas_bits);
     // Agregamos la primer ficha
-    ingresarFicha(ptr,piezas,columnas,columnas_bits,filaFicha,dimensiony,tablerofijo,juegoActivo);
+    ingresarFicha(ptr,piezas,columnas,columnas_bits,filaFicha,dimensiony,tablerofijo,juegoActivo,posicionx,dimensionx,piezaActiva);
 
     cout << "\n=======================================================\n";
     cout << "  _____     _       _      __  __           _   _ \n";
@@ -67,7 +73,7 @@ int main()
         switch(opcion) {
         case 'S':
         case 's':
-            bajar(ptr,tablerofijo,filaFicha,columnas_bits,filas,piezas,columnas,dimensiony,juegoActivo);
+            bajar(ptr,tablerofijo,filaFicha,columnas_bits,filas,piezas,columnas,dimensiony,juegoActivo,posicionx,dimensionx,piezaActiva);
             break;
         case 'Q':
         case 'q':
@@ -76,12 +82,45 @@ int main()
             break;
         case 'D':
         case 'd':
-            MoverDerecha(ptr,filaFicha,columnas_bits,filas,dimensiony);
+            MoverDerecha(ptr,filaFicha,columnas_bits,filas,dimensiony,posicionx,dimensionx);
             break;
         case 'A':
         case 'a':
-            MoverIzquierda(ptr,filaFicha,columnas_bits,dimensiony);
+            MoverIzquierda(ptr,filaFicha,columnas_bits,dimensiony,posicionx);
             break;
+        case 'W':
+        case 'w': {
+            // Creamos copias temporales para no perder la forma original si la rotación falla
+            unsigned char copiaPieza[4];
+            for(int i=0; i<4; i++) copiaPieza[i] = piezaActiva[i];
+            unsigned int copiaDimX = dimensionx;
+            unsigned int copiaDimY = dimensiony;
+
+            // 1. Rotamos las copias primero (Simulación)
+            rotarDerecha(copiaPieza, copiaDimX, copiaDimY);
+
+            // 2. Validamos si esa nueva forma cabe en el tablero
+            if (esPosibleRotar(copiaPieza, copiaDimX, copiaDimY, filaFicha, posicionx, tablerofijo, filas, columnas_bits)) {
+
+                // Si es posible, borramos la vieja del tablero de movimiento (ptr)
+                for (unsigned int i = 0; i < dimensiony; i++) {
+                    ptr[filaFicha + i][posicionx / 8] = 0;
+                }
+
+                // Aplicamos los cambios definitivos
+                for(int i=0; i<4; i++) piezaActiva[i] = copiaPieza[i];
+                dimensionx = copiaDimX;
+                dimensiony = copiaDimY;
+
+                // Redibujamos la nueva pieza rotada en ptr
+                for (unsigned int i = 0; i < dimensiony; i++) {
+                    unsigned char fila = piezaActiva[i];
+                    for (int d = 0; d < posicionx; d++) fila >>= 1;
+                    ptr[filaFicha + i][posicionx / 8] = fila;
+                }
+            }
+            break;
+        }
         default:
             cout << "Opcion no valida" << endl;
             break;
@@ -160,38 +199,53 @@ void imprimirTablero(unsigned char** ptr, unsigned int filas, unsigned int colum
 
 
 
-void ingresarFicha(unsigned char** ptr, unsigned char piezas[5][4],unsigned int columnas, unsigned int columnas_bits,unsigned int &filaficha,unsigned int &dimensiony,unsigned char** tablerofijo,bool &juegoActivo)
+void ingresarFicha(unsigned char** ptr, unsigned char piezas[5][4],unsigned int columnas, unsigned int columnas_bits,unsigned int &filaficha,unsigned int &dimensiony,unsigned char** tablerofijo,bool &juegoActivo,int &posicionx,unsigned int &dimensionx,unsigned char piezaActiva[4])
 {
-    unsigned int ficha,mitad = (columnas/2) - 2;
-
+    unsigned int ficha,mitad;
+    //reinicio la posicion en x
+    posicionx = 0;
+    //ficha ramdom
     ficha = rand() % 5;
 
     //dimensiones de la ficha
     // I
     if(ficha == 0){
-
+        dimensionx = 1;
         dimensiony = 4;
     }
     //T
     if(ficha == 1){
+        dimensionx = 3;
         dimensiony = 2;
 
     } // esto verifica la altura de la ficha y en que fila esta la parte mas baja de la ficha
     //z
     if(ficha == 2){
+        dimensionx = 3;
         dimensiony = 2;
 
         //L
     }
     if(ficha == 3){
-
+        dimensionx = 2;
         dimensiony = 3;
         //O
     }
     if(ficha == 4){
+        dimensionx = 2;
         dimensiony = 2;
 
     }
+
+
+
+    for(unsigned int i= 0; i < 4; i++){
+
+        piezaActiva[i] = piezas[ficha][i];
+    }
+
+    mitad = (columnas/2) - (dimensionx/2);
+    posicionx = mitad;
     for(unsigned int i = 0; i < dimensiony; i++)
     {
         if(piezas[ficha][i] != 0)
@@ -215,7 +269,9 @@ void ingresarFicha(unsigned char** ptr, unsigned char piezas[5][4],unsigned int 
                 }
             }
         }
+        //posicionx++;
     }
+
     for(unsigned int i = 0; i < dimensiony; i++)
     {
         if((ptr[i][0] & tablerofijo[i][0]) != 0)
@@ -228,7 +284,7 @@ void ingresarFicha(unsigned char** ptr, unsigned char piezas[5][4],unsigned int 
 
 }
 
-void bajar(unsigned char** ptr,unsigned char** tablerofijo,unsigned int &filaFicha,unsigned int columnas_bits,unsigned int filas, unsigned char piezas[5][4],unsigned int columnas,unsigned int &dimensiony,bool &juegoActivo)
+void bajar(unsigned char** ptr,unsigned char** tablerofijo,unsigned int &filaFicha,unsigned int columnas_bits,unsigned int filas, unsigned char piezas[5][4],unsigned int columnas,unsigned int &dimensiony,bool &juegoActivo,int &posicionx,unsigned int &dimensionx,unsigned char piezaActiva[4])
 {
 
 
@@ -246,8 +302,9 @@ void bajar(unsigned char** ptr,unsigned char** tablerofijo,unsigned int &filaFic
         //verifico que no este la fila completa
         borrarFilas(tablerofijo, filas, columnas_bits);
         // nueva ficha
-        ingresarFicha(ptr,piezas,columnas,columnas_bits,filaFicha,dimensiony,tablerofijo,juegoActivo);
+        ingresarFicha(ptr,piezas,columnas,columnas_bits,filaFicha,dimensiony,tablerofijo,juegoActivo,posicionx,dimensionx,piezaActiva);
         filaFicha = 0;//reinicio la posicion inicial
+
 
         return; // hayo una colision entonces termina la funcion
     }
@@ -266,44 +323,53 @@ void bajar(unsigned char** ptr,unsigned char** tablerofijo,unsigned int &filaFic
     filaFicha++;
 }
 
-void MoverDerecha(unsigned char** ptr,unsigned int filaFicha,unsigned int columnas_bits,unsigned int filas,unsigned int dimensiony){
+void MoverDerecha(unsigned char** ptr,unsigned int filaFicha,unsigned int columnas_bits,unsigned int filas,unsigned int dimensiony,int &posicionx,unsigned int dimensionx){
 
-    //aca solo hace una iteracion
-    for(unsigned int i = 0; i < dimensiony; i++) // recorrer filas de la ficha
-    {
-        for(int j = columnas_bits - 1; j >= 0; j--)
+    unsigned int columnas = columnas_bits * 8,posicionxfinal;
+
+    posicionxfinal = posicionx + dimensionx;
+
+    if((posicionxfinal + 1)<= columnas){
+        //aca solo hace una iteracion
+        for(unsigned int i = 0; i < dimensiony; i++) // recorrer filas de la ficha
         {
-            //necesito condiciones para que no haga overflow
-            unsigned char llevar_bit = (ptr[i + filaFicha][j] & 1) << 7;
+            for(int j = columnas_bits - 1; j >= 0; j--)
+            {
+                //necesito condiciones para que no haga overflow
+                unsigned char llevar_bit = (ptr[i + filaFicha][j] & 1) << 7;
 
-            ptr[i+filaFicha][j] >>= 1;
+                ptr[i+filaFicha][j] >>= 1;
 
-            if(j + 1 < columnas_bits){
-                ptr[i + filaFicha][j+1] |= llevar_bit ;
+                if(j + 1 < columnas_bits){
+                    ptr[i + filaFicha][j+1] |= llevar_bit ;
+
+                }
 
             }
-
         }
+        posicionx++;
     }
 }
 
-void MoverIzquierda(unsigned char** ptr,unsigned int filaFicha,unsigned int columnas_bits,unsigned int dimensiony){
-
-    //aca solo hace una iteracion
-    for(unsigned int i = 0; i < dimensiony; i++) // recorrer filas de la ficha
-    {
-        for(int j = 0; j < columnas_bits; j++)
+void MoverIzquierda(unsigned char** ptr,unsigned int filaFicha,unsigned int columnas_bits,unsigned int dimensiony,int &posicionx){
+    if(posicionx - 1 >= 0){
+        //aca solo hace una iteracion
+        for(unsigned int i = 0; i < dimensiony; i++) // recorrer filas de la ficha
         {
+            for(int j = 0; j < columnas_bits; j++)
+            {
 
-            unsigned char llevar_bit = (ptr[i + filaFicha][j] & 128) >> 7;
+                unsigned char llevar_bit = (ptr[i + filaFicha][j] & 128) >> 7;
 
-            ptr[i+filaFicha][j] <<= 1;
+                ptr[i+filaFicha][j] <<= 1;
 
-            if(j > 0){
-                ptr[i + filaFicha][j-1] |= llevar_bit;
+                if(j > 0){
+                    ptr[i + filaFicha][j-1] |= llevar_bit;
+                }
+
             }
-
         }
+        posicionx--;
     }
 }
 
@@ -365,5 +431,73 @@ void borrarFilas(unsigned char** tablerofijo, unsigned int filas, unsigned int c
     }
 }
 
+void rotarDerecha(unsigned char piezaActual[4], unsigned int &dimensionx, unsigned int &dimensiony) {
+    // Buffer temporal para construir la nueva forma sin destruir la original durante el proceso
+    unsigned char piezaRotada[4] = {0, 0, 0, 0};
 
+    // Al rotar 90 grados, el ancho se convierte en alto y viceversa
+    unsigned int nuevaDimX = dimensiony;
+    unsigned int nuevaDimY = dimensionx;
 
+    // Recorremos la pieza original bit a bit usando sus dimensiones actuales
+    for (unsigned int y = 0; y < dimensiony; y++) {
+        for (unsigned int x = 0; x < dimensionx; x++) {
+
+            // Extraemos el estado del bit en (x, y).
+            // (7 - x) ajusta la lectura: el bit 7 es la columna 0 (izquierda)
+            bool bitEncendido = (piezaActual[y] >> (7 - x)) & 1;
+
+            if (bitEncendido) {
+                /* Aplicamos la fórmula de rotación de matrices 90° horario:
+                   NuevaFila = x_vieja
+                   NuevaColumna = (Alto_viejo - 1) - y_vieja */
+                unsigned int nuevaFila = x;
+                unsigned int nuevaCol = (dimensiony - 1) - y;
+
+                // Insertamos el bit en la nueva posición dentro del buffer temporal
+                piezaRotada[nuevaFila] |= (1 << (7 - nuevaCol));
+            }
+        }
+    }
+
+    /* NORMALIZACIÓN AL BIT 7 (Izquierda):
+       Tras rotar, la pieza puede quedar desplazada a la derecha del byte.
+       Este bucle empuja los bits a la izquierda hasta que alguna fila toque el borde (bit 128).
+     */
+    while (!(piezaRotada[0] & 128 || piezaRotada[1] & 128 || piezaRotada[2] & 128 || piezaRotada[3] & 128)) {
+        for (int i = 0; i < 4; i++) {
+            piezaRotada[i] <<= 1;
+        }
+    }
+
+    // Transferimos la pieza rotada y actualizamos las dimensiones por referencia
+    for (int i = 0; i < 4; i++) {
+        piezaActual[i] = piezaRotada[i];
+    }
+    dimensionx = nuevaDimX;
+    dimensiony = nuevaDimY;
+}
+bool esPosibleRotar(unsigned char piezaRotada[4], unsigned int dimX, unsigned int dimY, unsigned int filaFicha, int posicionx, unsigned char** tablerofijo, unsigned int filas, unsigned int columnas_bits) {
+
+    // 1. Verificar límites del tablero (bordes)
+    if (filaFicha + dimY > filas) return false; // Se sale por abajo
+    if (posicionx < 0 || (posicionx + dimX) > (columnas_bits * 8)) return false; // Se sale por los lados
+
+    // 2. Verificar colisión con piezas fijas
+    for (unsigned int i = 0; i < dimY; i++) {
+        unsigned char filaDesplazada = piezaRotada[i];
+
+        // Desplazamos los bits de la pieza rotada a su posición X actual
+        for (int d = 0; d < posicionx; d++) {
+            filaDesplazada >>= 1;
+        }
+
+        // Si al hacer un AND con el tablero fijo el resultado no es 0, hay choque
+        // (Nota: Esto asume que la pieza cabe en el byte actual del tablero fijo)
+        if ((filaDesplazada & tablerofijo[filaFicha + i][posicionx / 8]) != 0) {
+            return false;
+        }
+    }
+
+    return true; // Si pasó todas las pruebas, la rotación es segura
+}
